@@ -3,9 +3,11 @@ Abstraction for handling KNX/IP tunnels.
 
 Tunnels connect to KNX/IP devices directly via UDP and build a static UDP connection.
 """
+from __future__ import annotations
+
 import asyncio
 import logging
-from typing import TYPE_CHECKING, Callable, Optional
+from typing import TYPE_CHECKING, Callable
 
 from xknx.exceptions import CommunicationError, XKNXException
 from xknx.knxip import (
@@ -19,12 +21,9 @@ from xknx.knxip import (
 )
 from xknx.telegram import IndividualAddress, Telegram, TelegramDirection
 
-from .connect import Connect
-from .connectionstate import ConnectionState
 from .const import HEARTBEAT_RATE
-from .disconnect import Disconnect
 from .interface import Interface
-from .tunnelling import Tunnelling
+from .request_response import Connect, ConnectionState, Disconnect, Tunnelling
 from .udp_client import UDPClient
 
 if TYPE_CHECKING:
@@ -38,24 +37,25 @@ logger = logging.getLogger("xknx.log")
 class Tunnel(Interface):
     """Class for handling KNX/IP tunnels."""
 
-    # pylint: disable=too-many-instance-attributes
-
     def __init__(
         self,
-        xknx: "XKNX",
-        local_ip: str,
+        xknx: XKNX,
         gateway_ip: str,
         gateway_port: int,
-        telegram_received_callback: Optional["TelegramCallbackType"] = None,
-        auto_reconnect: bool = False,
+        local_ip: str,
+        local_port: int = 0,
+        route_back: bool = False,
+        telegram_received_callback: TelegramCallbackType | None = None,
+        auto_reconnect: bool = True,
         auto_reconnect_wait: int = 3,
     ):
         """Initialize Tunnel class."""
-        # pylint: disable=too-many-arguments
         self.xknx = xknx
-        self.local_ip = local_ip
         self.gateway_ip = gateway_ip
         self.gateway_port = gateway_port
+        self.local_ip = local_ip
+        self.local_port = local_port
+        self.route_back = route_back
         self.telegram_received_callback = telegram_received_callback
 
         self.udp_client: UDPClient
@@ -63,21 +63,23 @@ class Tunnel(Interface):
 
         self._src_address = xknx.own_address
         self.sequence_number = 0
-        self.communication_channel: Optional[int] = None
+        self.communication_channel: int | None = None
         self.number_heartbeat_failed = 0
 
         self.auto_reconnect = auto_reconnect
         self.auto_reconnect_wait = auto_reconnect_wait
 
-        self._heartbeat_task: Optional[asyncio.Task[None]] = None
-        self._reconnect_task: Optional[asyncio.Task[None]] = None
+        self._heartbeat_task: asyncio.Task[None] | None = None
+        self._reconnect_task: asyncio.Task[None] | None = None
 
         self._is_reconnecting = False
 
     def init_udp_client(self) -> None:
         """Initialize udp_client."""
         self.udp_client = UDPClient(
-            self.xknx, (self.local_ip, 0), (self.gateway_ip, self.gateway_port)
+            self.xknx,
+            (self.local_ip, self.local_port),
+            (self.gateway_ip, self.gateway_port),
         )
 
         self.udp_client.register_callback(
@@ -158,7 +160,7 @@ class Tunnel(Interface):
 
     async def _connect_request(self) -> bool:
         """Connect to tunnelling server. Set communication_channel and src_address."""
-        connect = Connect(self.xknx, self.udp_client)
+        connect = Connect(self.xknx, self.udp_client, route_back=self.route_back)
         await connect.start()
         if connect.success:
             self.communication_channel = connect.communication_channel
@@ -182,6 +184,7 @@ class Tunnel(Interface):
             self.xknx,
             self.udp_client,
             communication_channel_id=self.communication_channel,
+            route_back=self.route_back,
         )
         await conn_state.start()
         return conn_state.success
@@ -193,6 +196,7 @@ class Tunnel(Interface):
                 self.xknx,
                 self.udp_client,
                 communication_channel_id=self.communication_channel,
+                route_back=self.route_back,
             )
             await disconnect.start()
             if not disconnect.success and not ignore_error:

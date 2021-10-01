@@ -7,17 +7,11 @@ nav_order: 1
 
 # Binary Sensor
 
-Binary sensors which have either the state "on" or "off". Binary sensors could be e.g. a switch in the wall (the thing you press on when switching on the light) or a motion detector.
-
-Switches are mainly intended to act on input, which means to execute so called `Actions`. An action can be toggling a switch or a light or the moving of a cover.
-
-The logic within switches can further handle if a button is pressed once or twice - and trigger different actions. Use the attribute `counter` for this purpose.
-
 ## [](#header-2)Overview
 
-```python
-binarysensor = BinarySensor(xknx, 'TestInput', group_address_state='1/2/3', device_class='motion')
-```
+Binary sensors which have either the state "on" or "off". Binary sensors could be e.g. a switch in the wall (the thing you press on when switching on the light) or a motion detector.
+
+The logic within switches can further handle if a button is pressed once or twice - and trigger different actions in HA. Use the attribute `counter` for this purpose.
 
 ## [](#header-2)Interface
 
@@ -25,78 +19,17 @@ binarysensor = BinarySensor(xknx, 'TestInput', group_address_state='1/2/3', devi
 - `name` is the name of the object.
 - `group_address_state` is the KNX group address of the sensor device.
 - `invert` inverts the payload so state "on" is represented by 0 on bus and "off" by 1. Defaults to `False`
-- `sync_state` defines if the value should be actively read from the bus. If `False` no GroupValueRead telegrams will be sent to its group address. Defaults to `True`
+- `sync_state` defines if and how often the value should be actively read from the bus. If `False` no GroupValueRead telegrams will be sent to its group address. Defaults to `True`
 - `ignore_internal_state` allows callback call regardless of the current binary sensor state. Defaults to `False`
 - `context_timeout` time in seconds telegrams should be counted towards the current context to increment the counter. If set `ignore_internal_state` is set `True`. Defaults to `None`
 - `reset_after` may be used to reset the internal state to `OFF` again after given time in sec. Defaults to `None`
-- `device_class` may be used to store the type of sensor, e.g. "motion" for motion detectors for Home-Assistant.
 - `device_updated_cb` awaitable callback for each update.
 
 ## [](#header-2)Example
 
 ```python
-outlet = Switch(xknx, 'TestOutlet', group_address='1/2/3')
-
 binarysensor = BinarySensor(xknx, 'TestInput', group_address_state='2/3/4')
-action_on = Action(
-    xknx,
-    hook='on',
-    target='TestOutlet',
-    method='on')
-binarysensor.actions.append(action_on)
-action_off = Action(
-    xknx,
-    hook='off',
-    target='TestOutlet',
-    method='off')
-binarysensor.actions.append(action_off)
-```
 
-## [](#header-2)Configuration via **xknx.yaml**
-
-Binary sensor objects are usually configured via [`xknx.yaml`](/configuration):
-
-```yaml
-groups:
-  binary_sensor:
-    Livingroom.Switch_1:
-      group_address_state: "1/2/7"
-      actions:
-        - { target: Livingroom.Outlet_1, method: "on" }
-        - { target: Livingroom.Outlet_2, method: "on" }
-
-    Livingroom.Switch_2:
-      group_address_state: "1/2/8"
-      actions:
-        - { target: Livingroom.Outlet_1, method: "off" }
-        - { target: Livingroom.Outlet_2, method: "off" }
-
-    Livingroom.Switch_3:
-      group_address_state: "1/2/5"
-      actions:
-        - { target: Livingroom.Shutter_1, method: up }
-        # Only executed if the button was switched twice:
-        - { counter: 2, target: Livingroom.Shutter_1, method: short_up }
-
-    Livingroom.Switch_4:
-      group_address_state: "1/2/6"
-      actions:
-        - { target: Livingroom.Shutter_1, method: down }
-        # Only executed if the button was switched twice:
-        - { counter: 2, target: Livingroom.Shutter_1, method: short_down }
-
-  switch:
-    Livingroom.Outlet_1: { group_address: "1/3/1" }
-    Livingroom.Outlet_2: { group_address: "1/3/2" }
-
-  cover:
-    Livingroom.Shutter_1:
-      {
-        group_address_long: 3171,
-        group_address_short: 3172,
-        group_address_position_state: 3173,
-        group_address_position: 3174,
-        travelling_time_down: 51,
-        travelling_time_up: 61,
-      }
+# Returns the last received Telegram or None
+binarysensor.last_telegram
 ```

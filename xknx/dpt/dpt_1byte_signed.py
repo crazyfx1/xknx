@@ -1,27 +1,30 @@
 """Implementation of Basic KNX 1-Byte signed integer values."""
+from __future__ import annotations
 
 from xknx.exceptions import ConversionError
 
-from .dpt import DPTBase
+from .dpt import DPTNumeric
 
 
-class DPTSignedRelativeValue(DPTBase):
+class DPTSignedRelativeValue(DPTNumeric):
     """
     Abstraction for KNX 1 Byte "1-octet Signed Relative Value".
 
     DPT 6.***
     """
 
-    value_min = -128
-    value_max = 127
     dpt_main_number = 6
-    dpt_sub_number = None
+    dpt_sub_number: int | None = None
     value_type = "1byte_signed"
     unit = ""
     payload_length = 1
 
+    value_min = -128
+    value_max = 127
+    resolution = 1
+
     @classmethod
-    def from_knx(cls, raw):
+    def from_knx(cls, raw: tuple[int, ...]) -> int:
         """Parse/deserialize from KNX/IP raw data."""
         cls.test_bytesarray(raw)
         if raw[0] > cls.value_max:
@@ -29,7 +32,7 @@ class DPTSignedRelativeValue(DPTBase):
         return raw[0]
 
     @classmethod
-    def to_knx(cls, value):
+    def to_knx(cls, value: int | float) -> tuple[int]:
         """Serialize to KNX/IP raw data."""
         try:
             knx_value = int(value)
@@ -42,7 +45,7 @@ class DPTSignedRelativeValue(DPTBase):
             raise ConversionError("Could not serialize %s" % cls.__name__, value=value)
 
     @classmethod
-    def _test_boundaries(cls, value):
+    def _test_boundaries(cls, value: int) -> bool:
         """Test if value is within defined range for this object."""
         return cls.value_min <= value <= cls.value_max
 

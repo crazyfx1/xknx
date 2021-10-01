@@ -4,68 +4,65 @@ Module for managing the climate within a room.
 * It reads/listens to a temperature address from KNX bus.
 * Manages and sends the desired setpoint to KNX bus.
 """
-from enum import Enum
+from __future__ import annotations
+
 import logging
-from typing import TYPE_CHECKING, Any, Iterator, Optional, Union, cast
+from typing import TYPE_CHECKING, Any, Iterator
 
 from xknx.remote_value import (
+    GroupAddressesType,
+    RemoteValue,
+    RemoteValueScaling,
     RemoteValueSetpointShift,
     RemoteValueSwitch,
     RemoteValueTemp,
 )
+from xknx.remote_value.remote_value_setpoint_shift import SetpointShiftMode
 
 from .climate_mode import ClimateMode
 from .device import Device, DeviceCallbackType
 
 if TYPE_CHECKING:
-    from xknx.remote_value import RemoteValue
     from xknx.telegram import Telegram
-    from xknx.telegram.address import GroupAddress, GroupAddressableType
+    from xknx.telegram.address import DeviceGroupAddress
     from xknx.xknx import XKNX
 
 logger = logging.getLogger("xknx.log")
 
 
-class SetpointShiftMode(Enum):
-    """Enum for setting the setpoint shift mode."""
-
-    DPT6010 = 1
-    DPT9002 = 2
-
-
 DEFAULT_SETPOINT_SHIFT_MAX = 6
 DEFAULT_SETPOINT_SHIFT_MIN = -6
 DEFAULT_TEMPERATURE_STEP = 0.1
-DEFAULT_SETPOINT_SHIFT_MODE = SetpointShiftMode.DPT6010
 
 
 class Climate(Device):
     """Class for managing the climate."""
 
-    # pylint: disable=too-many-instance-attributes,invalid-name
     def __init__(
         self,
-        xknx: "XKNX",
+        xknx: XKNX,
         name: str,
-        group_address_temperature: Optional["GroupAddressableType"] = None,
-        group_address_target_temperature: Optional["GroupAddressableType"] = None,
-        group_address_target_temperature_state: Optional["GroupAddressableType"] = None,
-        group_address_setpoint_shift: Optional["GroupAddressableType"] = None,
-        group_address_setpoint_shift_state: Optional["GroupAddressableType"] = None,
-        setpoint_shift_mode: SetpointShiftMode = DEFAULT_SETPOINT_SHIFT_MODE,
+        group_address_temperature: GroupAddressesType | None = None,
+        group_address_target_temperature: GroupAddressesType | None = None,
+        group_address_target_temperature_state: GroupAddressesType | None = None,
+        group_address_setpoint_shift: GroupAddressesType | None = None,
+        group_address_setpoint_shift_state: GroupAddressesType | None = None,
+        setpoint_shift_mode: SetpointShiftMode | None = None,
         setpoint_shift_max: float = DEFAULT_SETPOINT_SHIFT_MAX,
         setpoint_shift_min: float = DEFAULT_SETPOINT_SHIFT_MIN,
         temperature_step: float = DEFAULT_TEMPERATURE_STEP,
-        group_address_on_off: Optional["GroupAddressableType"] = None,
-        group_address_on_off_state: Optional["GroupAddressableType"] = None,
+        group_address_on_off: GroupAddressesType | None = None,
+        group_address_on_off_state: GroupAddressesType | None = None,
         on_off_invert: bool = False,
-        min_temp: Optional[float] = None,
-        max_temp: Optional[float] = None,
-        mode: Optional[ClimateMode] = None,
-        device_updated_cb: Optional[DeviceCallbackType] = None,
+        group_address_active_state: GroupAddressesType | None = None,
+        group_address_command_value_state: GroupAddressesType | None = None,
+        sync_state: bool | int | float | str = True,
+        min_temp: float | None = None,
+        max_temp: float | None = None,
+        mode: ClimateMode | None = None,
+        device_updated_cb: DeviceCallbackType | None = None,
     ):
         """Initialize Climate class."""
-        # pylint: disable=too-many-arguments, too-many-locals, too-many-branches, too-many-statements
         super().__init__(xknx, name, device_updated_cb)
 
         self.min_temp = min_temp
@@ -77,8 +74,9 @@ class Climate(Device):
         self.temperature = RemoteValueTemp(
             xknx,
             group_address_state=group_address_temperature,
+            sync_state=sync_state,
             device_name=self.name,
-            feature_name="Current Temperature",
+            feature_name="Current temperature",
             after_update_cb=self.after_update,
         )
 
@@ -86,112 +84,67 @@ class Climate(Device):
             xknx,
             group_address_target_temperature,
             group_address_target_temperature_state,
+            sync_state=sync_state,
             device_name=self.name,
             feature_name="Target temperature",
             after_update_cb=self.after_update,
         )
 
-        self._setpoint_shift: Union[RemoteValueTemp, RemoteValueSetpointShift]
-        if setpoint_shift_mode == SetpointShiftMode.DPT9002:
-            self._setpoint_shift = RemoteValueTemp(
-                xknx,
-                group_address_setpoint_shift,
-                group_address_setpoint_shift_state,
-                device_name=self.name,
-                after_update_cb=self.after_update,
-            )
-        else:
-            self._setpoint_shift = RemoteValueSetpointShift(
-                xknx,
-                group_address_setpoint_shift,
-                group_address_setpoint_shift_state,
-                device_name=self.name,
-                after_update_cb=self.after_update,
-                setpoint_shift_step=self.temperature_step,
-            )
+        self._setpoint_shift = RemoteValueSetpointShift(
+            xknx,
+            group_address_setpoint_shift,
+            group_address_setpoint_shift_state,
+            sync_state=sync_state,
+            device_name=self.name,
+            after_update_cb=self.after_update,
+            setpoint_shift_mode=setpoint_shift_mode,
+            setpoint_shift_step=self.temperature_step,
+        )
 
         self.supports_on_off = (
             group_address_on_off is not None or group_address_on_off_state is not None
         )
 
-        self.on = RemoteValueSwitch(
+        self.on = RemoteValueSwitch(  # pylint: disable=invalid-name
             xknx,
             group_address_on_off,
             group_address_on_off_state,
+            sync_state=sync_state,
             device_name=self.name,
             after_update_cb=self.after_update,
             invert=on_off_invert,
         )
 
+        self.active = RemoteValueSwitch(
+            xknx,
+            group_address_state=group_address_active_state,
+            sync_state=sync_state,
+            device_name=self.name,
+            feature_name="Active",
+            after_update_cb=self.after_update,
+        )
+
+        self.command_value = RemoteValueScaling(
+            xknx,
+            group_address_state=group_address_command_value_state,
+            sync_state=sync_state,
+            device_name=self.name,
+            feature_name="Command value",
+            after_update_cb=self.after_update,
+        )
+
         self.mode = mode
 
-    def _iter_remote_values(self) -> Iterator["RemoteValue"]:
+    def _iter_remote_values(self) -> Iterator[RemoteValue[Any, Any]]:
         """Iterate the devices RemoteValue classes."""
-        yield from (
-            self.temperature,
-            self.target_temperature,
-            self._setpoint_shift,
-            self.on,
-        )
+        yield self.temperature
+        yield self.target_temperature
+        yield self._setpoint_shift
+        yield self.on
+        yield self.active
+        yield self.command_value
 
-    @classmethod
-    def from_config(cls, xknx: "XKNX", name: str, config: Any) -> "Climate":
-        """Initialize object from configuration structure."""
-        # pylint: disable=too-many-locals
-        group_address_temperature = config.get("group_address_temperature")
-        group_address_target_temperature = config.get(
-            "group_address_target_temperature"
-        )
-        group_address_target_temperature_state = config.get(
-            "group_address_target_temperature_state"
-        )
-        group_address_setpoint_shift = config.get("group_address_setpoint_shift")
-        group_address_setpoint_shift_state = config.get(
-            "group_address_setpoint_shift_state"
-        )
-        setpoint_shift_mode = config.get(
-            "setpoint_shift_mode", DEFAULT_SETPOINT_SHIFT_MODE
-        )
-        setpoint_shift_max = config.get(
-            "setpoint_shift_max", DEFAULT_SETPOINT_SHIFT_MAX
-        )
-        setpoint_shift_min = config.get(
-            "setpoint_shift_min", DEFAULT_SETPOINT_SHIFT_MIN
-        )
-        temperature_step = config.get("temperature_step", DEFAULT_TEMPERATURE_STEP)
-        group_address_on_off = config.get("group_address_on_off")
-        group_address_on_off_state = config.get("group_address_on_off_state")
-        on_off_invert = config.get("on_off_invert", False)
-        min_temp = config.get("min_temp")
-        max_temp = config.get("max_temp")
-
-        climate_mode = None
-        if "mode" in config:
-            climate_mode = ClimateMode.from_config(
-                xknx=xknx, name=f"{name}_mode", config=config["mode"]
-            )
-
-        return cls(
-            xknx,
-            name,
-            group_address_temperature=group_address_temperature,
-            group_address_target_temperature=group_address_target_temperature,
-            group_address_target_temperature_state=group_address_target_temperature_state,
-            group_address_setpoint_shift=group_address_setpoint_shift,
-            group_address_setpoint_shift_state=group_address_setpoint_shift_state,
-            setpoint_shift_mode=setpoint_shift_mode,
-            setpoint_shift_max=setpoint_shift_max,
-            setpoint_shift_min=setpoint_shift_min,
-            temperature_step=temperature_step,
-            group_address_on_off=group_address_on_off,
-            group_address_on_off_state=group_address_on_off_state,
-            on_off_invert=on_off_invert,
-            min_temp=min_temp,
-            max_temp=max_temp,
-            mode=climate_mode,
-        )
-
-    def has_group_address(self, group_address: "GroupAddress") -> bool:
+    def has_group_address(self, group_address: DeviceGroupAddress) -> bool:
         """Test if device has given group address."""
         if self.mode is not None and self.mode.has_group_address(group_address):
             return True
@@ -202,6 +155,15 @@ class Climate(Device):
         """Return power status."""
         # None will return False
         return bool(self.on.value)
+
+    @property
+    def is_active(self) -> bool | None:
+        """Return if currently active. None if unknown."""
+        if self.active.value is not None:
+            return self.active.value
+        if self.command_value.value is not None:
+            return bool(self.command_value.value)
+        return None
 
     async def turn_on(self) -> None:
         """Set power status to on."""
@@ -214,15 +176,14 @@ class Climate(Device):
     @property
     def initialized_for_setpoint_shift_calculations(self) -> bool:
         """Test if object is initialized for setpoint shift calculations."""
-        if not self._setpoint_shift.initialized:
-            return False
-        if self._setpoint_shift.value is None:
-            return False
-        if not self.target_temperature.initialized:
-            return False
-        if self.target_temperature.value is None:
-            return False
-        return True
+        if (
+            self._setpoint_shift.initialized
+            and self._setpoint_shift.value is not None
+            and self.target_temperature.initialized
+            and self.target_temperature.value is not None
+        ):
+            return True
+        return False
 
     async def set_target_temperature(self, target_temperature: float) -> None:
         """Send new target temperature or setpoint_shift to KNX bus."""
@@ -237,7 +198,7 @@ class Climate(Device):
             await self.target_temperature.set(validated_temp)
 
     @property
-    def base_temperature(self) -> Optional[float]:
+    def base_temperature(self) -> float | None:
         """
         Return the base temperature when setpoint_shift is initialized.
 
@@ -245,17 +206,21 @@ class Climate(Device):
         As this value is usually not available via KNX, we have to derive this from the current
         target temperature and the current set point shift.
         """
-        if self.initialized_for_setpoint_shift_calculations:
-            return cast(float, self.target_temperature.value - self.setpoint_shift)
+        # implies self.initialized_for_setpoint_shift_calculations in a mypy compatible way:
+        if (
+            self.target_temperature.value is not None
+            and self._setpoint_shift.value is not None
+        ):
+            return self.target_temperature.value - self._setpoint_shift.value
         return None
 
     @property
-    def setpoint_shift(self) -> Optional[float]:
+    def setpoint_shift(self) -> float | None:
         """Return current offset from base temperature in Kelvin."""
-        return self._setpoint_shift.value  # type: ignore
+        return self._setpoint_shift.value
 
     def validate_value(
-        self, value: float, min_value: Optional[float], max_value: Optional[float]
+        self, value: float, min_value: float | None, max_value: float | None
     ) -> float:
         """Check boundaries of temperature and return valid temperature value."""
         if (min_value is not None) and (value < min_value):
@@ -278,7 +243,7 @@ class Climate(Device):
             await self.target_temperature.set(base_temperature + validated_offset)
 
     @property
-    def target_temperature_max(self) -> Optional[float]:
+    def target_temperature_max(self) -> float | None:
         """Return the highest possible target temperature."""
         if self.max_temp is not None:
             return self.max_temp
@@ -288,7 +253,7 @@ class Climate(Device):
         return None
 
     @property
-    def target_temperature_min(self) -> Optional[float]:
+    def target_temperature_min(self) -> float | None:
         """Return the lowest possible target temperature."""
         if self.min_temp is not None:
             return self.min_temp
@@ -297,7 +262,7 @@ class Climate(Device):
             return self.base_temperature + self.setpoint_shift_min
         return None
 
-    async def process_group_write(self, telegram: "Telegram") -> None:
+    async def process_group_write(self, telegram: Telegram) -> None:
         """Process incoming and outgoing GROUP WRITE telegram."""
         for remote_value in self._iter_remote_values():
             await remote_value.process(telegram)
@@ -314,13 +279,13 @@ class Climate(Device):
         """Return object as readable string."""
         return (
             '<Climate name="{}" '
-            'temperature="{}" '
-            'target_temperature="{}" '
+            "temperature={} "
+            "target_temperature={} "
             'temperature_step="{}" '
-            'setpoint_shift="{}" '
+            "setpoint_shift={} "
             'setpoint_shift_max="{}" '
             'setpoint_shift_min="{}" '
-            'group_address_on_off="{}" '
+            "group_address_on_off={} "
             "/>".format(
                 self.name,
                 self.temperature.group_addr_str(),

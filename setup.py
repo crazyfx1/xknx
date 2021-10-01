@@ -9,10 +9,10 @@ with open(path.join(THIS_DIRECTORY, "README.md"), encoding="utf-8") as f:
 
 VERSION = {}
 # pylint: disable=exec-used
-with open(path.join(THIS_DIRECTORY, "xknx/__version__.py")) as fp:
+with open(path.join(THIS_DIRECTORY, "xknx/__version__.py"), encoding="utf-8") as fp:
     exec(fp.read(), VERSION)
 
-REQUIRES = ["pyyaml>=5.1", "netifaces>=0.10.9", "voluptuous>=0.12.0"]
+REQUIRES = ["netifaces>=0.10.9"]
 
 setup(
     name="xknx",
@@ -33,11 +33,12 @@ setup(
         "Intended Audience :: Developers",
         "Topic :: System :: Hardware :: Hardware Drivers",
         "License :: OSI Approved :: MIT License",
-        "Programming Language :: Python :: 3.7",
         "Programming Language :: Python :: 3.8",
         "Programming Language :: Python :: 3.9",
     ],
     packages=find_packages(include=["xknx", "xknx.*"]),
+    package_data={"xknx": ["py.typed"]},
+    include_package_data=True,
     install_requires=REQUIRES,
     keywords="knx ip knxip eib home automation",
     zip_safe=False,

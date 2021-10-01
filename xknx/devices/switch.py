@@ -6,17 +6,18 @@ It provides functionality for
 * switching 'on' and 'off'.
 * reading the current state from KNX bus.
 """
+from __future__ import annotations
+
 import asyncio
 import logging
-from typing import TYPE_CHECKING, Any, Iterator, Optional
+from typing import TYPE_CHECKING, Iterator
 
-from xknx.remote_value import RemoteValueSwitch
+from xknx.remote_value import GroupAddressesType, RemoteValueSwitch
 
 from .device import Device, DeviceCallbackType
 
 if TYPE_CHECKING:
     from xknx.telegram import Telegram
-    from xknx.telegram.address import GroupAddressableType
     from xknx.xknx import XKNX
 
 logger = logging.getLogger("xknx.log")
@@ -27,25 +28,27 @@ class Switch(Device):
 
     def __init__(
         self,
-        xknx: "XKNX",
+        xknx: XKNX,
         name: str,
-        group_address: Optional["GroupAddressableType"] = None,
-        group_address_state: Optional["GroupAddressableType"] = None,
-        invert: Optional[bool] = False,
-        reset_after: Optional[float] = None,
-        device_updated_cb: Optional[DeviceCallbackType] = None,
+        group_address: GroupAddressesType | None = None,
+        group_address_state: GroupAddressesType | None = None,
+        respond_to_read: bool = False,
+        sync_state: bool | int | float | str = True,
+        invert: bool = False,
+        reset_after: float | None = None,
+        device_updated_cb: DeviceCallbackType | None = None,
     ):
         """Initialize Switch class."""
-        # pylint: disable=too-many-arguments
         super().__init__(xknx, name, device_updated_cb)
 
         self.reset_after = reset_after
-        self._reset_task: Optional[asyncio.Task[None]] = None
-
+        self._reset_task: asyncio.Task[None] | None = None
+        self.respond_to_read = respond_to_read
         self.switch = RemoteValueSwitch(
             xknx,
             group_address,
             group_address_state,
+            sync_state=sync_state,
             invert=invert,
             device_name=self.name,
             after_update_cb=self.after_update,
@@ -64,27 +67,10 @@ class Switch(Device):
                 pass
         super().__del__()
 
-    @classmethod
-    def from_config(cls, xknx: "XKNX", name: str, config: Any) -> "Switch":
-        """Initialize object from configuration structure."""
-        group_address = config.get("group_address")
-        group_address_state = config.get("group_address_state")
-        invert = config.get("invert")
-        reset_after = config.get("reset_after")
-
-        return cls(
-            xknx,
-            name,
-            group_address=group_address,
-            group_address_state=group_address_state,
-            invert=invert,
-            reset_after=reset_after,
-        )
-
     @property
-    def state(self) -> Optional[bool]:
+    def state(self) -> bool | None:
         """Return the current switch state of the device."""
-        return self.switch.value  # type: ignore
+        return self.switch.value
 
     async def set_on(self) -> None:
         """Switch on switch."""
@@ -93,17 +79,6 @@ class Switch(Device):
     async def set_off(self) -> None:
         """Switch off switch."""
         await self.switch.off()
-
-    async def do(self, action: str) -> None:
-        """Execute 'do' commands."""
-        if action == "on":
-            await self.set_on()
-        elif action == "off":
-            await self.set_off()
-        else:
-            logger.warning(
-                "Could not understand action %s for device %s", action, self.get_name()
-            )
 
     async def process_group_write(self, telegram: "Telegram") -> None:
         """Process incoming and outgoing GROUP WRITE telegram."""
@@ -115,12 +90,20 @@ class Switch(Device):
                     self._reset_state(self.reset_after)
                 )
 
+    async def process_group_read(self, telegram: "Telegram") -> None:
+        """Process incoming GroupValueResponse telegrams."""
+        if (
+            self.respond_to_read
+            and telegram.destination_address == self.switch.group_address
+        ):
+            await self.switch.respond()
+
     async def _reset_state(self, wait_seconds: float) -> None:
         await asyncio.sleep(wait_seconds)
         await self.set_off()
 
     def __str__(self) -> str:
         """Return object as readable string."""
-        return '<Switch name="{}" switch="{}" />'.format(
+        return '<Switch name="{}" switch={} />'.format(
             self.name, self.switch.group_addr_str()
         )

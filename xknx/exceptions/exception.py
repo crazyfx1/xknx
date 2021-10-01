@@ -1,11 +1,13 @@
 """Module for XKXN Exceptions."""
-from typing import Any, Optional, Tuple, Union
+from __future__ import annotations
+
+from typing import Any
 
 
 class XKNXException(Exception):
     """Default XKNX Exception."""
 
-    def __eq__(self, other: Optional[object]) -> bool:
+    def __eq__(self, other: object | None) -> bool:
         """Equal operator."""
         return repr(self) == repr(other)
 
@@ -31,7 +33,7 @@ class CommunicationError(XKNXException):
 class CouldNotParseTelegram(XKNXException):
     """Could not parse telegram error."""
 
-    def __init__(self, description: str, **kwargs: str) -> None:
+    def __init__(self, description: str, **kwargs: Any) -> None:
         """Initialize CouldNotParseTelegram class."""
         super().__init__()
         self.description = description
@@ -78,7 +80,7 @@ class UnsupportedCEMIMessage(XKNXException):
 class ConversionError(XKNXException):
     """Exception class for error while converting one type to another."""
 
-    def __init__(self, description: str, **kwargs: str) -> None:
+    def __init__(self, description: str, **kwargs: Any) -> None:
         """Initialize ConversionError class."""
         super().__init__()
         self.description = description
@@ -98,7 +100,7 @@ class CouldNotParseAddress(XKNXException):
     """Exception class for wrong address format."""
 
     def __init__(
-        self, address: Union[object, str, Tuple[Any, ...], int, None] = None
+        self, address: object | str | tuple[Any, ...] | int | None = None
     ) -> None:
         """Initialize CouldNotParseAddress class."""
         super().__init__()

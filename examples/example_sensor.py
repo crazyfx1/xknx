@@ -14,9 +14,8 @@ async def main():
         xknx,
         "DiningRoom.Motion.Sensor",
         group_address_state="6/0/2",
-        device_class="motion",
     )
-    await sensor1.sync()
+    await sensor1.sync(wait_for_result=True)
     print(sensor1)
 
     sensor2 = Sensor(
@@ -26,7 +25,7 @@ async def main():
         value_type="temperature",
     )
 
-    await sensor2.sync()
+    await sensor2.sync(wait_for_result=True)
     print(sensor2)
 
     await xknx.stop()

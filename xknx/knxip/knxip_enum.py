@@ -57,7 +57,7 @@ class CEMIMessageCode(Enum):
 
     # FROM NETWORK LAYER TO DATA LINK LAYER
     L_RAW_REQ = 0x10
-    L_Data_REQ = 0x11  # Data Service.
+    L_DATA_REQ = 0x11  # Data Service.
     # Primitive used for transmitting a data frame
     L_POLL_DATA_REQ = 0x13  # Poll Data Service
 
@@ -76,8 +76,6 @@ class CEMIMessageCode(Enum):
 
 class CEMIFlags:
     """Enum class for KNX/IP CEMI Flags."""
-
-    # pylint: disable=too-few-public-methods
 
     # Bit 1/7
     FRAME_TYPE_EXTENDED = 0x0000
@@ -171,7 +169,6 @@ class KNXMedium(Enum):
 
     TP1 = 0x02
     PL110 = 0x04
-    # pylint: disable=invalid-name
     RF = 0x10
     KNX_IP = 0x20
 

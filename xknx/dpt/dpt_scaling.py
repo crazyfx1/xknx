@@ -1,27 +1,30 @@
 """Implementation of scaled KNX DPT_1_Ucount Values."""
+from __future__ import annotations
+
 from xknx.exceptions import ConversionError
 
-from .dpt import DPTBase
+from .dpt import DPTNumeric
 
 
-class DPTScaling(DPTBase):
+class DPTScaling(DPTNumeric):
     """
     Abstraction for KNX 1 Octet Percent.
 
     DPT 5.001
     """
 
-    value_min = 0
-    value_max = 100
-    resolution = 100 / 255
     dpt_main_number = 5
     dpt_sub_number = 1
     value_type = "percent"
     unit = "%"
     payload_length = 1
 
+    value_min = 0
+    value_max = 100
+    resolution = 1
+
     @classmethod
-    def from_knx(cls, raw):
+    def from_knx(cls, raw: tuple[int, ...]) -> int:
         """Parse/deserialize from KNX/IP raw data."""
         cls.test_bytesarray(raw)
 
@@ -37,7 +40,7 @@ class DPTScaling(DPTBase):
         return value
 
     @classmethod
-    def to_knx(cls, value):
+    def to_knx(cls, value: float) -> tuple[int]:
         """Serialize to KNX/IP raw data."""
         try:
             percent_value = float(value)
@@ -51,7 +54,7 @@ class DPTScaling(DPTBase):
             raise ConversionError("Could not serialize %s" % cls.__name__, value=value)
 
     @classmethod
-    def _test_boundaries(cls, value):
+    def _test_boundaries(cls, value: float) -> bool:
         """Test if value is within defined range for this object."""
         return cls.value_min <= value <= cls.value_max
 
@@ -63,10 +66,11 @@ class DPTAngle(DPTScaling):
     DPT 5.003
     """
 
-    value_min = 0
-    value_max = 360
-    resolution = 360 / 255
     dpt_main_number = 5
     dpt_sub_number = 3
     value_type = "angle"
     unit = "°"
+
+    value_min = 0
+    value_max = 360
+    resolution = 1

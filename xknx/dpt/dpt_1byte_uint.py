@@ -1,27 +1,30 @@
 """Implementation of Basic KNX DPT_1_Ucount Values."""
+from __future__ import annotations
+
 from xknx.exceptions import ConversionError
 
-from .dpt import DPTBase
+from .dpt import DPTNumeric
 
 
-class DPTValue1ByteUnsigned(DPTBase):
+class DPTValue1ByteUnsigned(DPTNumeric):
     """
     Abstraction for KNX 1 Octet.
 
     DPT 5.***
     """
 
-    value_min = 0
-    value_max = 255
     dpt_main_number = 5
-    dpt_sub_number = None
+    dpt_sub_number: int | None = None
     value_type = "1byte_unsigned"
     unit = ""
-    resolution = 1
     payload_length = 1
 
+    value_min = 0
+    value_max = 255
+    resolution = 1
+
     @classmethod
-    def from_knx(cls, raw):
+    def from_knx(cls, raw: tuple[int, ...]) -> int:
         """Parse/deserialize from KNX/IP raw data."""
         cls.test_bytesarray(raw)
 
@@ -35,7 +38,7 @@ class DPTValue1ByteUnsigned(DPTBase):
         return value
 
     @classmethod
-    def to_knx(cls, value):
+    def to_knx(cls, value: int | float) -> tuple[int]:
         """Serialize to KNX/IP raw data."""
         try:
             knx_value = int(value)
@@ -46,7 +49,7 @@ class DPTValue1ByteUnsigned(DPTBase):
             raise ConversionError("Could not serialize %s" % cls.__name__, value=value)
 
     @classmethod
-    def _test_boundaries(cls, value):
+    def _test_boundaries(cls, value: int) -> bool:
         """Test if value is within defined range for this object."""
         return cls.value_min <= value <= cls.value_max
 
@@ -109,15 +112,16 @@ class DPTSceneNumber(DPTValue1ByteUnsigned):
     DPT 17.001
     """
 
-    value_min = 1
-    value_max = 64
     dpt_main_number = 17
     dpt_sub_number = 1
     value_type = "scene_number"
     unit = ""
 
+    value_min = 1
+    value_max = 64
+
     @classmethod
-    def from_knx(cls, raw):
+    def from_knx(cls, raw: tuple[int, ...]) -> int:
         """Parse/deserialize from KNX/IP raw data."""
         cls.test_bytesarray(raw)
 
@@ -131,7 +135,7 @@ class DPTSceneNumber(DPTValue1ByteUnsigned):
         return value
 
     @classmethod
-    def to_knx(cls, value):
+    def to_knx(cls, value: int | float) -> tuple[int]:
         """Serialize to KNX/IP raw data."""
         try:
             knx_value = int(value) - 1

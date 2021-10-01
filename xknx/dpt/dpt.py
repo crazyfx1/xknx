@@ -1,10 +1,16 @@
 """Implementation of Basic KNX datatypes."""
-from typing import Union
+from __future__ import annotations
+
+from abc import ABC, abstractmethod
+from inspect import isabstract
+from typing import Any, Iterator, Type, TypeVar, cast
 
 from xknx.exceptions import ConversionError
 
+T = TypeVar("T", bound=Type["DPTBase"])  # pylint: disable=invalid-name
 
-class DPTBase:
+
+class DPTBase(ABC):
     """
     Base class for KNX data point type transcoder.
 
@@ -41,10 +47,25 @@ class DPTBase:
 
     """
 
-    payload_length = None
+    payload_length: int = cast(int, None)
+    dpt_main_number: int | None = None
+    dpt_sub_number: int | None = None
+    value_type: str | None = None
+    unit: str | None = None
+    ha_device_class: str | None = None
 
     @classmethod
-    def test_bytesarray(cls, raw):
+    @abstractmethod
+    def from_knx(cls, raw: tuple[int, ...]) -> Any:
+        """Parse/deserialize from KNX/IP raw data (big endian)."""
+
+    @classmethod
+    @abstractmethod
+    def to_knx(cls, value: Any) -> bytes | tuple[int, ...]:
+        """Serialize to KNX/IP raw data."""
+
+    @classmethod
+    def test_bytesarray(cls, raw: tuple[int, ...]) -> None:
         """Test if array of raw bytes has the correct length and values of correct type."""
         if cls.payload_length is None:
             raise NotImplementedError("payload_length has to be defined for: %s" % cls)
@@ -58,82 +79,99 @@ class DPTBase:
             raise ConversionError("Invalid raw bytes", raw=raw)
 
     @classmethod
-    def __recursive_subclasses__(cls):
+    def __recursive_subclasses__(cls: T) -> Iterator[T]:
         """Yield all subclasses and their subclasses."""
         for subclass in cls.__subclasses__():
             yield from subclass.__recursive_subclasses__()
-            yield subclass
+            if not isabstract(subclass):
+                yield subclass
 
     @classmethod
-    def has_distinct_dpt_numbers(cls):
+    def has_distinct_dpt_numbers(cls) -> bool:
         """Return True if dpt numbers are defined (not inherited)."""
         return "dpt_main_number" in cls.__dict__ and "dpt_sub_number" in cls.__dict__
 
     @classmethod
-    def has_distinct_value_type(cls):
+    def has_distinct_value_type(cls) -> bool:
         """Return True if value_type is defined (not inherited)."""
         return "value_type" in cls.__dict__
 
-    @staticmethod
-    def transcoder_by_dpt(dpt_main, dpt_sub=None):
+    @classmethod
+    def transcoder_by_dpt(
+        cls: T, dpt_main: int, dpt_sub: int | None = None
+    ) -> T | None:
         """Return Class reference of DPTBase subclass with matching DPT number."""
-        for dpt in DPTBase.__recursive_subclasses__():
+        for dpt in cls.__recursive_subclasses__():
             if dpt.has_distinct_dpt_numbers():
                 if dpt_main == dpt.dpt_main_number and dpt_sub == dpt.dpt_sub_number:
                     return dpt
         return None
 
-    @staticmethod
-    def transcoder_by_value_type(value_type):
+    @classmethod
+    def transcoder_by_value_type(cls: T, value_type: str) -> T | None:
         """Return Class reference of DPTBase subclass with matching value_type."""
-        for dpt in DPTBase.__recursive_subclasses__():
+        for dpt in cls.__recursive_subclasses__():
             if dpt.has_distinct_value_type():
                 if value_type == dpt.value_type:
                     return dpt
         return None
 
-    @staticmethod
-    def parse_transcoder(value_type):
+    @classmethod
+    def parse_transcoder(cls: T, value_type: int | str) -> T | None:
         """Return Class reference of DPTBase subclass from value_type or DPT number."""
         if isinstance(value_type, int):
-            return DPTBase.transcoder_by_dpt(value_type)
-        if isinstance(value_type, float):
-            # avoid modulo for floating point rounding errors
-            main, sub = map(int, f"{value_type:.3f}".split("."))
-            return DPTBase.transcoder_by_dpt(main, sub)
+            return cls.transcoder_by_dpt(value_type)
         if isinstance(value_type, str):
-            _string_type = value_type.strip()
-            transcoder = DPTBase.transcoder_by_value_type(_string_type)
+            string_type = value_type.strip()
+            transcoder = cls.transcoder_by_value_type(string_type)
             if transcoder is None:
-                # Try to parse the value_type if it is a string but not found by DPTBase.transcoder_by_value_type()
+                # Try to parse the value_type if it is a string but not found by cls.transcoder_by_value_type()
                 # for backwards compatibility (eg. "DPT-5") and strings representing numbers (eg. "7", "9.001")
-                _string_type = _string_type.upper().strip(" DPT-")
-                if _string_type.isdigit():
-                    transcoder = DPTBase.parse_transcoder(int(_string_type))
+                string_type = string_type.upper().strip(" DPT-")
+                if string_type.isdigit():
+                    transcoder = cls.transcoder_by_dpt(int(string_type))
                 else:
                     try:
-                        transcoder = DPTBase.parse_transcoder(float(_string_type))
-                    except ValueError:
+                        main, sub = map(int, string_type.split("."))
+                        transcoder = cls.transcoder_by_dpt(dpt_main=main, dpt_sub=sub)
+                    except (ValueError, IndexError):
                         pass
             return transcoder
-        return None
+
+
+class DPTNumeric(DPTBase):
+    """Base class for KNX data point types decoding numeric values."""
+
+    value_min: int | float
+    value_max: int | float
+    resolution: int | float
+
+    @classmethod
+    @abstractmethod
+    def from_knx(cls, raw: tuple[int, ...]) -> int | float:
+        """Parse/deserialize from KNX/IP raw data (big endian)."""
+
+    @classmethod
+    @abstractmethod
+    def to_knx(cls, value: int | float) -> bytes | tuple[int, ...]:
+        """Serialize to KNX/IP raw data."""
 
 
 class DPTBinary:
     """The DPTBinary is a base class for all datatypes encoded directly into the last 6 bit of the APCI (mostly integer)."""
 
-    # pylint: disable=too-few-public-methods
-
     # APCI (application layer control information)
     APCI_BITMASK = 0x3F
     APCI_MAX_VALUE = APCI_BITMASK
 
-    def __init__(self, value: int) -> None:
+    def __init__(self, value: int | tuple[int]) -> None:
         """Initialize DPTBinary class."""
+        if isinstance(value, tuple):
+            value = value[0]
         if not isinstance(value, int):
             raise TypeError()
-        if value > DPTBinary.APCI_BITMASK:
-            raise ConversionError("Could not init DPTBinary", value=value)
+        if value > DPTBinary.APCI_BITMASK or value < 0:
+            raise ConversionError("Could not init DPTBinary", value=str(value))
 
         self.value = value
 
@@ -143,6 +181,10 @@ class DPTBinary:
             return self.value == other.value
         return False
 
+    def __repr__(self) -> str:
+        """Return object representation."""
+        return f"DPTBinary({hex(self.value)})"
+
     def __str__(self) -> str:
         """Return object as readable string."""
         return f'<DPTBinary value="{self.value}" />'
@@ -151,15 +193,13 @@ class DPTBinary:
 class DPTArray:
     """The DPTArray is a base class for all datatypes appended to the KNX telegram."""
 
-    # pylint: disable=too-few-public-methods
-    def __init__(self, value: Union[int, list, bytes, tuple]) -> None:
+    def __init__(self, value: int | bytes | tuple[int, ...] | list[int]) -> None:
         """Initialize DPTArray class."""
+        self.value: tuple[int, ...]
         if isinstance(value, int):
             self.value = (value,)
         elif isinstance(value, (list, bytes)):
-            self.value = tuple(
-                value,
-            )
+            self.value = tuple(value)
         elif isinstance(value, tuple):
             self.value = value
         else:
@@ -170,6 +210,10 @@ class DPTArray:
         if isinstance(other, DPTArray):
             return self.value == other.value
         return False
+
+    def __repr__(self) -> str:
+        """Return object representation."""
+        return "DPTArray(({}))".format(", ".join(hex(b) for b in self.value))
 
     def __str__(self) -> str:
         """Return object as readable string."""

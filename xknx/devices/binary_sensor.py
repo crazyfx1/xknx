@@ -8,58 +8,50 @@ A binary sensor can be:
 
 A BinarySensor may also have Actions attached which are executed after state was changed.
 """
+from __future__ import annotations
+
 import asyncio
 import time
-from typing import TYPE_CHECKING, Any, Iterator, List, Optional, cast
+from typing import TYPE_CHECKING, Iterator, cast
 
-from xknx.remote_value import RemoteValueSwitch
+from xknx.remote_value import GroupAddressesType, RemoteValueSwitch
 
-from .action import Action
 from .device import Device, DeviceCallbackType
 
 if TYPE_CHECKING:
     from xknx.telegram import Telegram
-    from xknx.telegram.address import GroupAddressableType
     from xknx.xknx import XKNX
 
 
 class BinarySensor(Device):
     """Class for binary sensor."""
 
-    # pylint: disable=too-many-instance-attributes
     def __init__(
         self,
-        xknx: "XKNX",
+        xknx: XKNX,
         name: str,
-        group_address_state: "GroupAddressableType" = None,
-        invert: Optional[bool] = False,
-        sync_state: bool = True,
+        group_address_state: GroupAddressesType = None,
+        invert: bool = False,
+        sync_state: bool | int | float | str = True,
         ignore_internal_state: bool = False,
-        device_class: Optional[str] = None,
-        reset_after: Optional[float] = None,
-        actions: Optional[List[Action]] = None,
-        context_timeout: Optional[float] = None,
-        device_updated_cb: Optional[DeviceCallbackType] = None,
+        reset_after: float | None = None,
+        context_timeout: float | None = None,
+        device_updated_cb: DeviceCallbackType | None = None,
     ):
         """Initialize BinarySensor class."""
-        # pylint: disable=too-many-arguments
         super().__init__(xknx, name, device_updated_cb)
-        if actions is None:
-            actions = []
 
-        self.actions = actions
-        self.device_class = device_class
         self.ignore_internal_state = ignore_internal_state or bool(context_timeout)
         self.reset_after = reset_after
-        self.state: Optional[bool] = None
+        self.state: bool | None = None
 
         self._context_timeout = context_timeout
         self._count_set_on = 0
         self._count_set_off = 0
-        self._last_set: Optional[float] = None
-        self._reset_task: Optional[asyncio.Task[None]] = None
-        self._context_task: Optional[asyncio.Task[None]] = None
-        # TODO: log a warning if reset_after and sync_state are true ? This could cause actions to self-fire.
+        self._last_set: float | None = None
+        self._reset_task: asyncio.Task[None] | None = None
+        self._context_task: asyncio.Task[None] | None = None
+
         self.remote_value = RemoteValueSwitch(
             xknx,
             group_address_state=group_address_state,
@@ -74,6 +66,11 @@ class BinarySensor(Device):
         """Iterate the devices RemoteValue classes."""
         yield self.remote_value
 
+    @property
+    def last_telegram(self) -> Telegram | None:
+        """Return the last telegram received from the RemoteValue."""
+        return self.remote_value.telegram
+
     def __del__(self) -> None:
         """Destructor. Cleaning up if this was not done before."""
         try:
@@ -85,76 +82,41 @@ class BinarySensor(Device):
             pass
         super().__del__()
 
-    @classmethod
-    def from_config(cls, xknx: "XKNX", name: str, config: Any) -> "BinarySensor":
-        """Initialize object from configuration structure."""
-        group_address_state = config.get("group_address_state")
-        invert = config.get("invert")
-        context_timeout = config.get("context_timeout")
-        reset_after = config.get("reset_after")
-        sync_state = config.get("sync_state", True)
-        device_class = config.get("device_class")
-        ignore_internal_state = config.get("ignore_internal_state", False)
-        actions = []
-        if "actions" in config:
-            for action in config["actions"]:
-                action = Action.from_config(xknx, action)
-                actions.append(action)
-
-        return cls(
-            xknx,
-            name,
-            group_address_state=group_address_state,
-            invert=invert,
-            sync_state=sync_state,
-            ignore_internal_state=ignore_internal_state,
-            context_timeout=context_timeout,
-            reset_after=reset_after,
-            device_class=device_class,
-            actions=actions,
-        )
-
     async def _state_from_remote_value(self) -> None:
         """Update the internal state from RemoteValue (Callback)."""
-        await self._set_internal_state(self.remote_value.value)
+        if self.remote_value.value is not None:
+            await self._set_internal_state(self.remote_value.value)
 
     async def _set_internal_state(self, state: bool) -> None:
         """Set the internal state of the device. If state was changed after_update hooks and connected Actions are executed."""
         if state != self.state or self.ignore_internal_state:
             self.state = state
-            self.bump_and_get_counter(state)
 
             if self.ignore_internal_state and self._context_timeout:
+                self.bump_and_get_counter(state)
                 if self._context_task:
                     self._context_task.cancel()
                 self._context_task = asyncio.create_task(
                     self._counter_task(self._context_timeout)
                 )
             else:
-                await self._trigger_callbacks()
+                await self.after_update()
 
     async def _counter_task(self, wait_seconds: float) -> None:
         """Trigger after 1 second to prevent double triggers."""
         await asyncio.sleep(wait_seconds)
-        await self._trigger_callbacks()
+        await self.after_update()
 
         self._count_set_on = 0
         self._count_set_off = 0
-
         await self.after_update()
-
-    async def _trigger_callbacks(self) -> None:
-        """Trigger callbacks for device and execute actions if any."""
-        await self.after_update()
-
-        for action in self.actions:
-            if action.test_if_applicable(cast(bool, self.state), self.counter):
-                await action.execute()
 
     @property
-    def counter(self) -> int:
+    def counter(self) -> int | None:
         """Return current counter for sensor."""
-        return self._count_set_on if self.state else self._count_set_off
+        if self._context_timeout:
+            return self._count_set_on if self.state else self._count_set_off
+        return None
 
     def bump_and_get_counter(self, state: bool) -> int:
         """Bump counter and return the number of times a state was set to the same value within CONTEXT_TIMEOUT."""
@@ -169,7 +131,7 @@ class BinarySensor(Device):
             self._last_set = new_set_time
             return time_diff < cast(float, self._context_timeout)
 
-        if self._context_timeout and within_same_context():
+        if within_same_context():
             if state:
                 self._count_set_on = self._count_set_on + 1
                 return self._count_set_on
@@ -215,6 +177,6 @@ class BinarySensor(Device):
 
     def __str__(self) -> str:
         """Return object as readable string."""
-        return '<BinarySensor name="{}" remote_value="{}" state="{}"/>'.format(
-            self.name, self.remote_value.group_addr_str(), self.state
+        return '<BinarySensor name="{}" remote_value={} state={} />'.format(
+            self.name, self.remote_value.group_addr_str(), self.state.__repr__()
         )

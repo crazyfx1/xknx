@@ -22,29 +22,32 @@ Shutters are simple representations of blind/roller cover actuators. With XKNX y
 - `group_address_position_state` KNX group address for retrieving the relative position. *DPT 5.001*
 - `group_address_angle` KNX group address to tilt blinds to relative position. *DPT 5.001*
 - `group_address_angle_state` KNX group address to retrieve angle of blinds. *DPT 5.001*
+- `group_address_locked_state` KNX group address to retrieve if manual interaction with the cover is currently disabled. *DPT 1.001*
+- `sync_state` defines if and how often the value should be actively read from the bus. If `False` no GroupValueRead telegrams will be sent to its group address. Defaults to `True`
 - `travel_time_down` seconds to reach lower end position. Default: 22
 - `travel_time_up` seconds to reach upper end position. Default: 22
 - `invert_position` invert position (payload for eg. set_up() and relative position). Default: False
 - `invert_angle` invert angle. Default: False
-- `device_class` may be used to store the type of cover, e.g. "shutter" for Home-Assistant (see [cover documentation](https://www.home-assistant.io/integrations/cover/) for details).
 - `device_updated_cb` awaitable callback for each update.
 
 ## [](#header-2)Example
 
 ```python
-cover = Cover(xknx,
-              'TestCover',
-              group_address_long='1/2/1',
-              group_address_short='1/2/2',
-              group_address_position='1/2/3',
-              group_address_position_state='1/2/4',
-              group_address_angle='1/2/5',
-              group_address_angle_state='1/2/6',
-              travel_time_down=50,
-              travel_time_up=60,
-              invert_position=False,
-              invert_angle=False,
-              device_class='shutter')
+cover = Cover(
+    xknx,
+    'TestCover',
+    group_address_long='1/2/1',
+    group_address_short='1/2/2',
+    group_address_position='1/2/3',
+    group_address_position_state='1/2/4',
+    group_address_angle='1/2/5',
+    group_address_angle_state='1/2/6',
+    group_address_locked_state='1/2/7',
+    travel_time_down=50,
+    travel_time_up=60,
+    invert_position=False,
+    invert_angle=False,
+)
 
 # Moving to up position
 await cover.set_up()
@@ -83,6 +86,7 @@ is_closed = cover.is_closed()
 is_traveling = cover.is_traveling()
 is_opening = cover.is_opening()
 is_closing = cover.is_closing()
+is_locked = cover.is_locked()
 
 # Accessing cover via 'do'
 await cover.do('up')
@@ -90,16 +94,6 @@ await cover.do('short_up')
 await cover.do('down')
 await cover.do('short_down')
 
-# Requesting state via KNX GROUP WRITE
+# Requesting state via KNX GroupValueRead
 await cover.sync()
-```
-
-## [](#header-2)Configuration via **xknx.yaml**
-
-Covers are usually configured via [`xknx.yaml`](/configuration):
-
-```yaml
-groups:
-    cover:
-        Livingroom.Shutter_1: {group_address_long: '1/4/1', group_address_short: '1/4/2', group_address_position_feedback: '1/4/3', group_address_position: '1/4/4', travel_time_down: 50, travel_time_up: 60 }
 ```

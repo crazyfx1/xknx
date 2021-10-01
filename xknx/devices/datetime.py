@@ -1,36 +1,35 @@
 """
 Module for broadcasting date/time to the KNX bus.
 
-DateTime is a virtual/pseudo device, using the infrastructure for
-beeing configured via xknx.yaml and synchronized periodically
-by StateUpdate.
+DateTime is a virtual/pseudo device, optionally
+broadcasting localtime periodically.
 """
+from __future__ import annotations
+
 import asyncio
 import time
-from typing import TYPE_CHECKING, Any, Iterator, Optional
+from typing import TYPE_CHECKING, Iterator
 
-from xknx.remote_value import RemoteValueDateTime
+from xknx.remote_value import GroupAddressesType, RemoteValueDateTime
 
 from .device import Device, DeviceCallbackType
 
 if TYPE_CHECKING:
     from xknx.telegram import Telegram
-    from xknx.telegram.address import GroupAddressableType
     from xknx.xknx import XKNX
 
 
 class DateTime(Device):
     """Class for virtual date/time device."""
 
-    # pylint: disable=too-many-arguments
     def __init__(
         self,
-        xknx: "XKNX",
+        xknx: XKNX,
         name: str,
         broadcast_type: str = "TIME",
         localtime: bool = True,
-        group_address: Optional["GroupAddressableType"] = None,
-        device_updated_cb: Optional[DeviceCallbackType] = None,
+        group_address: GroupAddressesType | None = None,
+        device_updated_cb: DeviceCallbackType | None = None,
     ):
         """Initialize DateTime class."""
         super().__init__(xknx, name, device_updated_cb)
@@ -59,18 +58,7 @@ class DateTime(Device):
         """Iterate the devices RemoteValue classes."""
         yield self._remote_value
 
-    @classmethod
-    def from_config(cls, xknx: "XKNX", name: str, config: Any) -> "DateTime":
-        """Initialize object from configuration structure."""
-        broadcast_type = config.get("broadcast_type", "time").upper()
-        group_address = config.get("group_address")
-        return cls(
-            xknx, name, broadcast_type=broadcast_type, group_address=group_address
-        )
-
-    def _create_broadcast_task(
-        self, minutes: int = 60
-    ) -> Optional["asyncio.Task[None]"]:
+    def _create_broadcast_task(self, minutes: int = 60) -> asyncio.Task[None] | None:
         """Create an asyncio.Task for broadcasting local time periodically if `localtime` is set."""
 
         async def broadcast_loop(self: "DateTime", minutes: int) -> None:
@@ -106,6 +94,6 @@ class DateTime(Device):
 
     def __str__(self) -> str:
         """Return object as readable string."""
-        return '<DateTime name="{}" group_address="{}" broadcast_type="{}" />'.format(
+        return '<DateTime name="{}" _remote_value={} broadcast_type="{}" />'.format(
             self.name, self._remote_value.group_addr_str(), self._broadcast_type
         )

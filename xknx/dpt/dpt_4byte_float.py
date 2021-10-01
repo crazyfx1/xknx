@@ -3,15 +3,18 @@ Implementation of KNX 4 byte Float-values.
 
 They correspond to the the following KDN DPT 14 class.
 """
+from __future__ import annotations
 
+from math import ceil, log10
 import struct
+from typing import cast
 
 from xknx.exceptions import ConversionError
 
-from .dpt import DPTBase
+from .dpt import DPTNumeric
 
 
-class DPT4ByteFloat(DPTBase):
+class DPT4ByteFloat(DPTNumeric):
     """
     Abstraction for KNX 4 Octet Floating Point Numbers, with a maximum usable range as specified in IEEE 754.
 
@@ -24,22 +27,34 @@ class DPT4ByteFloat(DPTBase):
     """
 
     dpt_main_number = 14
-    dpt_sub_number = None
+    dpt_sub_number: int | None = None
     value_type = "4byte_float"
     unit = ""
     payload_length = 4
 
+    value_min = float("-inf")
+    value_max = float("inf")
+    resolution = 0.0000001
+
     @classmethod
-    def from_knx(cls, raw):
+    def from_knx(cls, raw: tuple[int, ...]) -> float:
         """Parse/deserialize from KNX/IP raw data (big endian)."""
         cls.test_bytesarray(raw)
         try:
-            return struct.unpack(">f", bytes(raw))[0]
+            raw_float = cast(float, struct.unpack(">f", bytes(raw))[0])
         except struct.error:
             raise ConversionError("Could not parse %s" % cls.__name__, raw=raw)
+        try:
+            # round to 7 digit precicion independent of exponent - same value as ETS 5.7 group monitor
+            return round(raw_float, 7 - ceil(log10(abs(raw_float))))
+        except (ValueError, OverflowError):
+            # account for 0 and special values
+            # ValueError: log10(0.0); ceil(float('nan'))
+            # OverflowError: ceil(float('inf'))
+            return raw_float
 
     @classmethod
-    def to_knx(cls, value):
+    def to_knx(cls, value: float) -> tuple[int, ...]:
         """Serialize to KNX/IP raw data."""
         try:
             knx_value = float(value)

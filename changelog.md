@@ -1,5 +1,175 @@
 # Changelog
 
+## Unreleased changes
+
+### Internals
+
+- GatewayScanFilter: Ignore non-gateway KNX/IP devices
+
+## 0.18.9 HS-color 2021-07-26
+
+### Devices
+
+- Light: Support for HS-color (DPT 5.003 hue and 5.001 saturation)
+
+## 0.18.8 Position-only cover 2021-06-30
+
+### Devices
+
+- Cover: enable `set_up` and `set_down` with `group_address_position` only (without `group_address_long`).
+
+## 0.18.7 RawValue 2021-06-18
+
+### Devices
+
+- Add RawValue device.
+- Remove unused HA-specific attributes (unique_id, device_class, create_sensors).
+- Climate: add `group_address_active_state`, `group_address_command_value_state` and a `is_active` property.
+- Configurable `sync_state` in all devices.
+
+## 0.18.6 NumericValue 2021-06-11
+
+### Devices
+
+- Add `respond_to_read` option to Switch. If `True` GroupValueRead telegrams addressed to the `group_address` are answered.
+- Add NumericValue device.
+
+### Internals
+
+- Add RemoteValueNumeric for values of type `float | int`.
+- Fix DPTBase classmethod return types
+
+## 0.18.5 DPTNumeric 2021-06-08
+
+### Internals
+
+- `DPTBase.parse_transcoder` is now a classmethod to allow parsing only subclasses.
+- Add `DPTNumeric` as base class for DPTs representing numeric values.
+
+## 0.18.4 ClimateMode bugfix 2021-06-04
+
+### Bugfix
+
+- ClimateMode: Fix telegram processing when operation_mode and controller_mode (heat/cool) are both used
+
+## 0.18.3 XYY colors 2021-05-30
+
+### Devices
+
+- Light: Support for xyY-color (DPT 242.600)
+
+## 0.18.2 Climate and Light improvements 2021-05-11
+
+### Devices
+
+- Climate: Make `setpoint_shift_mode` optional. When `None` assign its DPT from the first incoming payload.
+- Light: Support individual color lights without switch object
+
+## 0.18.1 Internal group addresses 2021-04-23
+
+### Devices
+
+- Add InternalGroupAddress for communication between Devices without sending to the bus.
+
+### Internals
+
+- RemoteValue.value changed to a settable property. It is used to create payloads for outgoing telegrams.
+- RemoteValue.update_value (async) sets a new value and awaits the callbacks without sending to the bus.
+- Round DPT 14 values to precision of 7 digits
+
+## 0.18.0
+
+## Devices
+
+- Add support for cover lock
+- ExposeSensor values can now be read from other xknx devices that share a group address
+- Add more information to sensors and binary sensors in the HA integration
+
+### Breaking Changes
+
+- Remove configuration handling from core library (use https://xknx.io/config-converter)
+
+### Internals
+
+- Drop support for python 3.7
+- use pytest tests instead of unittest TestCase
+- Move RequestResponse and subclasses to xknx.io.request_response.*
+- Move ConnectionConfig to xknx.io.connection
+- Store last Telegram and decoded value in RemoteValue
+- Improve CI to use Codecov instead of Coveralls for code coverage reports
+
+## 0.17.5 Add support for unique ids 2021-03-30
+
+### HA integration
+
+- Add experimental (opt-in) support for unique ids
+
+### Internals
+
+- Remove unfinished config v2
+
+## 0.17.4 Bugfix for ValueReader 2021-03-26
+
+### Internals
+
+- Comparing GroupAddress or IndividualAddress to other types don't raise TypeError anymore
+- Specify some type annotations
+
+## 0.17.3 Passive addresses 2021-03-16
+
+### Devices
+
+- Accept lists of group addresses using the heads for group_address / group_address_state and the tails for passive_group_addresses in every Device (and RemoteValue)
+- Sensor: Don't allow floats in DPTBase value_type parser
+
+## 0.17.2 Value templates 2021-03-10
+
+### Devices
+
+- BinarySensor, Sensor: add `ha_value_template` attribute to store HomeAssistant value templates
+
+### Internals
+
+- Distribute type annotations
+
+## 0.17.1 Cover up 2021-02-23
+
+### Devices
+
+- Cover: Use correct step direction when stopping
+
+### Internals
+
+- Convert all Enums to upper case to satisfy pylint
+
+## 0.17.0 Route back 2021-02-19
+
+### New Features
+
+- Add new optional config `route_back` for connections to be able to work behind NAT.
+- Read env vars after reading config file to allow dynamic config.
+
+### HA integration
+
+- knx_event: fire also for outgoing telegrams
+
+### Devices
+
+- BinarySensor: return `None` for `BinarySensor.counter` when context timeout is not used (and don't calculate it)
+- Climate: Add `create_temperature_sensors` option to create dedicated sensors for current and target temperature.
+- Weather (breaking change!): Renamed `expose_sensors` to `create_sensors` to prevent confusion with the XKNX `expose_sensor` device type.
+- Weather: Added wind bearing attribute that accepts a value in degrees (0-360) for determining wind direction.
+
+### Internals
+
+- RemoteValue is Generic now accepting DPTArray or DPTBinary
+- split RemoteValueClimateMode into RemoteValueControllerMode and RemoteValueOperationMode
+- return the payload (or None) in RemoteValue.payload_valid(payload) instead of bool
+- Light colors are represented as `Tuple[Tuple[int,int,int], int]` instead of `Tuple[List[int], int]` now
+- DPT 3 payloads/values are not invertable anymore.
+- Tunnel: Interface changed - gateway_ip, gateway_port before local_ip, local_port added with default `0`.
+- Tunnel: default `auto_reconnect`to True
+
 ## 0.16.3 Fan contributions 2021-02-06
 
 ### Devices
@@ -7,11 +177,11 @@
 - Fan: Add `max_step` attribute which defines the maximum amount of steps. If set, the fan is controlled by steps instead of percentage.
 - Fan: Add `group_address_oscillation` and `group_address_oscillation_state` attributes to control the oscillation of a fan.
 
-## 0.16.2 Bugfix for yaml loader 2021-01-24
+## 0.16.2 Bugfix for YAML loader 2021-01-24
 
 ### Internals
 
-- fix conflict with HA Yaml loader
+- fix conflict with HA YAML loader
 
 ## 0.16.1 HA register services 2021-01-16
 
@@ -163,7 +333,7 @@
 - Reset binary sensor counters after the context has been timed out in order to be able to use state change events within HA
 - Code cleanups
 
-## 0.14.0 New sensor types and refacoring of binary sensor automations
+## 0.14.0 New sensor types and refactoring of binary sensor automations
 
 ### Breaking changes
 
@@ -428,7 +598,7 @@ E.g. to switch on a light you have to do:
 await light.set_on()
 ```
 
-See updated [examples](https://github.com/XKNX/xknx/tree/master/examples) for details.
+See updated [examples](https://github.com/XKNX/xknx/tree/main/examples) for details.
 
 ### Renaming of several objects:
 

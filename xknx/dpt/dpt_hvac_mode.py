@@ -1,10 +1,14 @@
 """Implementation of different KNX DPT HVAC Operation modes."""
+from __future__ import annotations
 
 from enum import Enum
+from typing import Generic, TypeVar
 
 from xknx.exceptions import ConversionError, CouldNotParseKNXIP
 
 from .dpt import DPTBase
+
+HVACModeType = TypeVar("HVACModeType", "HVACControllerMode", "HVACOperationMode")
 
 
 class HVACOperationMode(Enum):
@@ -36,15 +40,15 @@ class HVACControllerMode(Enum):
     NODEM = "NoDem"
 
 
-class _DPTClimateMode(DPTBase):
+class _DPTClimateMode(DPTBase, Generic[HVACModeType]):
     """Base class for KNX Climate modes."""
 
-    SUPPORTED_MODES = {}
+    SUPPORTED_MODES: dict[int, HVACModeType] = {}
 
     payload_length = 1
 
     @classmethod
-    def from_knx(cls, raw):
+    def from_knx(cls, raw: tuple[int, ...]) -> HVACModeType:
         """Parse/deserialize from KNX/IP raw data."""
         cls.test_bytesarray(raw)
         if raw[0] in cls.SUPPORTED_MODES:
@@ -52,7 +56,7 @@ class _DPTClimateMode(DPTBase):
         raise CouldNotParseKNXIP("Could not parse HVACOperationMode")
 
     @classmethod
-    def to_knx(cls, value):
+    def to_knx(cls, value: HVACModeType) -> tuple[int]:
         """Serialize to KNX/IP raw data."""
         for knx_value, mode in cls.SUPPORTED_MODES.items():
             if mode == value:
@@ -60,14 +64,14 @@ class _DPTClimateMode(DPTBase):
         raise ConversionError("Could not parse %s" % cls.__name__, value=value)
 
 
-class DPTHVACContrMode(_DPTClimateMode):
+class DPTHVACContrMode(_DPTClimateMode[HVACControllerMode]):
     """
     Abstraction for KNX HVAC controller mode.
 
     DPT 20.105
     """
 
-    SUPPORTED_MODES = {
+    SUPPORTED_MODES: dict[int, HVACControllerMode] = {
         0: HVACControllerMode.AUTO,
         1: HVACControllerMode.HEAT,
         2: HVACControllerMode.MORNING_WARMUP,
@@ -85,24 +89,23 @@ class DPTHVACContrMode(_DPTClimateMode):
     }
 
 
-class DPTHVACMode(_DPTClimateMode):
+class DPTHVACMode(_DPTClimateMode[HVACOperationMode]):
     """
     Abstraction for KNX HVAC mode.
 
     DPT 20.102
     """
 
-    SUPPORTED_MODES = {
+    SUPPORTED_MODES: dict[int, HVACOperationMode] = {
         0: HVACOperationMode.AUTO,
         1: HVACOperationMode.COMFORT,
         2: HVACOperationMode.STANDBY,
         3: HVACOperationMode.NIGHT,
         4: HVACOperationMode.FROST_PROTECTION,
     }
-    SUPPORTED_MODES_INV = dict(reversed(item) for item in SUPPORTED_MODES.items())
 
 
-class DPTControllerStatus(_DPTClimateMode):
+class DPTControllerStatus(_DPTClimateMode[HVACOperationMode]):
     """
     Abstraction for KNX HVAC Controller status.
 
@@ -113,17 +116,15 @@ class DPTControllerStatus(_DPTClimateMode):
     notes on the correct implementation of this type are highly appreciated.
     """
 
-    SUPPORTED_MODES = {
+    SUPPORTED_MODES: dict[int, HVACOperationMode] = {
         0x21: HVACOperationMode.COMFORT,
         0x22: HVACOperationMode.STANDBY,
         0x24: HVACOperationMode.NIGHT,
         0x28: HVACOperationMode.FROST_PROTECTION,
     }
 
-    SUPPORTED_MODES_INV = dict(reversed(item) for item in SUPPORTED_MODES.items())
-
     @classmethod
-    def from_knx(cls, raw):
+    def from_knx(cls, raw: tuple[int, ...]) -> HVACOperationMode:
         """Parse/deserialize from KNX/IP raw data."""
         cls.test_bytesarray(raw)
         if raw[0] & 8 > 0:

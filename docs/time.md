@@ -2,7 +2,7 @@
 layout: default
 title: Time
 parent: Devices
-nav_order: 8
+nav_order: 10
 ---
 
 # [](#header-1)Time
@@ -21,7 +21,7 @@ time_device = DateTime(
     localtime=True
 )
 
-# Sending time to knx bus
+# `sync()` doesn't send a GroupValueRead when localtime is True but sends the current time to KNX bus
 await xknx.devices['TimeTest'].sync()
 ```
 
@@ -31,17 +31,6 @@ await xknx.devices['TimeTest'].sync()
 * `broadcast_type` defines the value type that will be sent to the KNX bus. Valid attributes are: 'time', 'date' and 'datetime'. Default: `time`
 * `localtime` If set `True` sync() and GroupValueRead requests always return the current local time. On `False` the set value will be sent. Default: `True`
 * `device_updated_cb` awaitable callback for each update.
-
-
-## [](#header-2)Configuration via **xknx.yaml**
-
-Time objects are usually configured via [`xknx.yaml`](/configuration):
-
-```yaml
-groups:
-    time:
-        General.Time: {group_address: '2/1/2'}
-```
 
 ## [](#header-2)Daemon mode
 

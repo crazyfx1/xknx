@@ -1,14 +1,15 @@
 """Module for managing a notification via KNX."""
-import logging
-from typing import TYPE_CHECKING, Any, Iterator, Optional
+from __future__ import annotations
 
-from xknx.remote_value import RemoteValueString
+import logging
+from typing import TYPE_CHECKING, Iterator
+
+from xknx.remote_value import GroupAddressesType, RemoteValueString
 
 from .device import Device, DeviceCallbackType
 
 if TYPE_CHECKING:
     from xknx.telegram import Telegram
-    from xknx.telegram.address import GroupAddressableType
     from xknx.xknx import XKNX
 
 logger = logging.getLogger("xknx.log")
@@ -19,20 +20,21 @@ class Notification(Device):
 
     def __init__(
         self,
-        xknx: "XKNX",
+        xknx: XKNX,
         name: str,
-        group_address: Optional["GroupAddressableType"] = None,
-        group_address_state: Optional["GroupAddressableType"] = None,
-        device_updated_cb: Optional[DeviceCallbackType] = None,
+        group_address: GroupAddressesType | None = None,
+        group_address_state: GroupAddressesType | None = None,
+        sync_state: bool | int | float | str = True,
+        device_updated_cb: DeviceCallbackType | None = None,
     ):
         """Initialize notification class."""
-        # pylint: disable=too-many-arguments
         super().__init__(xknx, name, device_updated_cb)
 
         self._message = RemoteValueString(
             xknx,
             group_address=group_address,
             group_address_state=group_address_state,
+            sync_state=sync_state,
             device_name=name,
             feature_name="Message",
             after_update_cb=self.after_update,
@@ -42,23 +44,10 @@ class Notification(Device):
         """Iterate the devices RemoteValue classes."""
         yield self._message
 
-    @classmethod
-    def from_config(cls, xknx: "XKNX", name: str, config: Any) -> "Notification":
-        """Initialize object from configuration structure."""
-        group_address = config.get("group_address")
-        group_address_state = config.get("group_address_state")
-
-        return cls(
-            xknx,
-            name,
-            group_address=group_address,
-            group_address_state=group_address_state,
-        )
-
     @property
-    def message(self) -> Optional[str]:
+    def message(self) -> str | None:
         """Return the current message."""
-        return self._message.value  # type: ignore
+        return self._message.value
 
     async def set(self, message: str) -> None:
         """Set message."""
@@ -69,17 +58,8 @@ class Notification(Device):
         """Process incoming and outgoing GROUP WRITE telegram."""
         await self._message.process(telegram)
 
-    async def do(self, action: str) -> None:
-        """Execute 'do' commands."""
-        if action.startswith("message:"):
-            await self.set(action[8:])
-        else:
-            logger.warning(
-                "Could not understand action %s for device %s", action, self.get_name()
-            )
-
     def __str__(self) -> str:
         """Return object as readable string."""
-        return '<Notification name="{}" message="{}" />'.format(
+        return '<Notification name="{}" message={} />'.format(
             self.name, self._message.group_addr_str()
         )

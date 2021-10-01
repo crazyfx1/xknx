@@ -5,7 +5,7 @@ Module for encoding and decoding KNX datatypes.
 * Derived KNX Values like Scaling, Temperature
 """
 # flake8: noqa
-from .dpt import DPTArray, DPTBase, DPTBinary
+from .dpt import DPTArray, DPTBase, DPTBinary, DPTNumeric
 from .dpt_1byte_signed import DPTPercentV8, DPTSignedRelativeValue, DPTValue1Count
 from .dpt_1byte_uint import (
     DPTDecimalFactor,
@@ -167,6 +167,7 @@ from .dpt_4byte_int import (
     DPTReactiveEnergykVARh,
     DPTValue4Count,
 )
+from .dpt_color import DPTColorXYY
 from .dpt_date import DPTDate
 from .dpt_datetime import DPTDateTime
 from .dpt_hvac_mode import DPTControllerStatus, DPTHVACContrMode, DPTHVACMode
@@ -207,6 +208,7 @@ __all__ = [
     "DPTChargeDensitySurface",
     "DPTChargeDensityVolume",
     "DPTColorTemperature",
+    "DPTColorXYY",
     "DPTCommonTemperature",
     "DPTCompressibility",
     "DPTConductance",
@@ -266,6 +268,7 @@ __all__ = [
     "DPTMassFlux",
     "DPTMol",
     "DPTMomentum",
+    "DPTNumeric",
     "DPTPartsPerMillion",
     "DPTPercentU8",
     "DPTPercentV16",

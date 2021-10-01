@@ -1,11 +1,12 @@
 """Implementation of Basic KNX 2-Byte/octet values."""
+from __future__ import annotations
 
 from xknx.exceptions import ConversionError
 
-from .dpt import DPTBase
+from .dpt import DPTNumeric
 
 
-class DPT2ByteUnsigned(DPTBase):
+class DPT2ByteUnsigned(DPTNumeric):
     """
     Abstraction for KNX 2 Byte "2-octet unsigned value".
 
@@ -14,23 +15,24 @@ class DPT2ByteUnsigned(DPTBase):
     DPT 7.***
     """
 
-    value_min = 0
-    value_max = 65535
     dpt_main_number = 7
-    dpt_sub_number = None
+    dpt_sub_number: int | None = None
     value_type = "2byte_unsigned"
     unit = ""
-    resolution = 1
     payload_length = 2
 
+    value_min = 0
+    value_max = 65535
+    resolution = 1
+
     @classmethod
-    def from_knx(cls, raw):
+    def from_knx(cls, raw: tuple[int, ...]) -> int:
         """Parse/deserialize from KNX/IP raw data."""
         cls.test_bytesarray(raw)
         return (raw[0] * 256) + raw[1]
 
     @classmethod
-    def to_knx(cls, value):
+    def to_knx(cls, value: int | float) -> tuple[int, int]:
         """Serialize to KNX/IP raw data."""
         try:
             knx_value = int(value)
@@ -41,7 +43,7 @@ class DPT2ByteUnsigned(DPTBase):
             raise ConversionError("Could not serialize %s" % cls.__name__, value=value)
 
     @classmethod
-    def _test_boundaries(cls, value):
+    def _test_boundaries(cls, value: int) -> bool:
         """Test if value is within defined range for this object."""
         return cls.value_min <= value <= cls.value_max
 
@@ -71,7 +73,6 @@ class DPTTimePeriod10Msec(DPT2ByteUnsigned):
     dpt_sub_number = 3
     value_type = "time_period_10msec"
     unit = "ms"
-    resolution = 10
 
 
 class DPTTimePeriod100Msec(DPT2ByteUnsigned):
@@ -81,7 +82,6 @@ class DPTTimePeriod100Msec(DPT2ByteUnsigned):
     dpt_sub_number = 4
     value_type = "time_period_100msec"
     unit = "ms"
-    resolution = 100
 
 
 class DPTTimePeriodSec(DPT2ByteUnsigned):

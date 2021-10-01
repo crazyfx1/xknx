@@ -3,14 +3,19 @@ Module for managing a remote date and time values.
 
 DPT 10.001, 11.001 and 19.001
 """
+from __future__ import annotations
+
 from enum import Enum
 import time
-from typing import List
+from typing import TYPE_CHECKING
 
-from xknx.dpt import DPTArray, DPTDate, DPTDateTime, DPTTime
+from xknx.dpt import DPTArray, DPTBinary, DPTDate, DPTDateTime, DPTTime
 from xknx.exceptions import ConversionError
 
-from .remote_value import RemoteValue
+from .remote_value import AsyncCallbackType, GroupAddressesType, RemoteValue
+
+if TYPE_CHECKING:
+    from xknx.xknx import XKNX
 
 
 class DateTimeType(Enum):
@@ -21,25 +26,25 @@ class DateTimeType(Enum):
     TIME = DPTTime
 
 
-class RemoteValueDateTime(RemoteValue):
+class RemoteValueDateTime(RemoteValue[DPTArray, time.struct_time]):
     """Abstraction for remote value of KNX 10.001, 11.001 and 19.001 time and date objects."""
 
     def __init__(
         self,
-        xknx,
-        group_address=None,
-        group_address_state=None,
-        sync_state=True,
-        value_type="time",
-        device_name=None,
-        feature_name="DateTime",
-        after_update_cb=None,
-        passive_group_addresses: List[str] = None,
+        xknx: XKNX,
+        group_address: GroupAddressesType | None = None,
+        group_address_state: GroupAddressesType | None = None,
+        sync_state: bool | int | float | str = True,
+        value_type: str = "time",
+        device_name: str | None = None,
+        feature_name: str = "DateTime",
+        after_update_cb: AsyncCallbackType | None = None,
     ):
-        """Initialize RemoteValueSensor class."""
-        # pylint: disable=too-many-arguments
+        """Initialize RemoteValueDateTime class."""
         try:
-            self.dpt_class = DateTimeType[value_type.upper()].value
+            self.dpt_class: type[DPTDate | DPTDateTime | DPTTime] = DateTimeType[
+                value_type.upper()
+            ].value
         except KeyError:
             raise ConversionError(
                 "invalid datetime value type",
@@ -55,20 +60,21 @@ class RemoteValueDateTime(RemoteValue):
             device_name=device_name,
             feature_name=feature_name,
             after_update_cb=after_update_cb,
-            passive_group_addresses=passive_group_addresses,
         )
 
-    def payload_valid(self, payload):
+    def payload_valid(self, payload: DPTArray | DPTBinary | None) -> DPTArray | None:
         """Test if telegram payload may be parsed."""
         return (
-            isinstance(payload, DPTArray)
+            payload
+            if isinstance(payload, DPTArray)
             and len(payload.value) == self.dpt_class.payload_length
+            else None
         )
 
-    def to_knx(self, value: time.struct_time):
+    def to_knx(self, value: time.struct_time) -> DPTArray:
         """Convert value to payload."""
         return DPTArray(self.dpt_class.to_knx(value))
 
-    def from_knx(self, payload) -> time.struct_time:
+    def from_knx(self, payload: DPTArray) -> time.struct_time:
         """Convert current payload to value."""
         return self.dpt_class.from_knx(payload.value)

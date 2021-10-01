@@ -2,7 +2,7 @@
 layout: default
 title: Sensor
 parent: Devices
-nav_order: 6
+nav_order: 8
 ---
 
 # [](#header-1)Sensor - Monitor values of KNX
@@ -33,25 +33,15 @@ sensor = Sensor(
     value_type='temperature'
 )
 
-await sensor.sync() # Syncs the state. Tries to read the corresponding value from the bus.
+# Requesting current state via KNX GroupValueRead from the bus
+await sensor.sync(wait_for_result=True)
 
-sensor.resolve_state() # Returns the value of in a human readable way
+# Returns the value of in a human readable way
+sensor.resolve_state()
 
-sensor.unit_of_measurement() # returns the unit of the value in a human readable way
+# Returns the unit of the value as string
+sensor.unit_of_measurement()
+
+# Returns the last received telegram or None
+sensor.last_telegram
 ```
-
-## [](#header-2)Configuration via **xknx.yaml**
-
-Sensor objects are usually configured via [`xknx.yaml`](/configuration):
-
-```yaml
-    sensor:
-        Heating.Valve1: {group_address_state: '2/0/0', value_type: 'percent'}
-        Heating.Valve2: {group_address_state: '2/0/1', value_type: 'percent', sync_state: False}
-        Kitchen.Temperature: {group_address_state: '2/0/2', value_type: 'temperature'}
-        Some.Other.Value: {group_address_state: '2/0/3'}
-```
-
-
-
-
