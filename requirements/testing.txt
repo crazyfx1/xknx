@@ -9,5 +9,5 @@ pytest==6.2.5
 pytest-asyncio==0.15.1
 pytest-cov==3.0.0
 setuptools==58.2.0
-tox==3.24.4
+tox==3.24.5
 mypy==0.910
